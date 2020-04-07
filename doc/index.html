@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<style>
+			body{padding: 0; margin: 0; background: rgb(40, 40, 40);}
+			.layout{
+				//display: grid;
+				//grid-template-columns: 200px 600px;
+			}
+		</style>
+
+		<script src="https://cdn.jsdelivr.net/npm/chart.js@2.8.0"></script>
+	</head>
+	<body>
+		
+		<div class="layout">
+			<div style="width: 30%; float: left">
+				<canvas id="statistics_chart" width="100" height="80"></canvas>
+			</div>
+			<div style="width: 70%; float: right">
+				<canvas id="sim_canvas" width="600" height="600" style="width: 60%">Your browser does not support the HTML5 canvas tag.</canvas>
+			</div>
+		</div>
+
+
+		<script>
+			var ctx = document.getElementById('statistics_chart').getContext('2d');
+			var chart = new Chart(ctx, {
+			    type: 'line',
+			    data: {
+			        labels: [],
+			        datasets: [{
+			            label: 'Active',
+			            borderColor: '#e91e63'
+			        },
+			        {
+			            label: 'Recovered',
+			            borderColor: '#3f51b5'
+			        },
+			        {
+			            label: 'Dead',
+			            borderColor: 'gray'
+			        }]
+			    },
+			    options: {
+			        scales: {
+			            yAxes: [{
+			                ticks: {
+			                    beginAtZero: true
+			                }
+			            }]
+			        }
+			    }
+			});
+
+
+			function addData(label, infected, recovered, dead) {
+			    chart.data.labels.push(label);
+			    chart.data.datasets[0].data.push(infected);
+			    chart.data.datasets[1].data.push(recovered);
+			    chart.data.datasets[2].data.push(dead);
+			    chart.update();
+			}
+
+
+
+
+
+			// Canvas
+			const CANVAS_WIDTH = 600;
+			const CANVAS_HEIGHT = 600;
+			const DOT_SIZE = 2;
+
+			// Population
+			const POPULATION = 8500;
+			//const TRAVEL_SPEED = 5;
+
+			// Desease
+			const TICKS_IN_A_DAY = 5;
+			const MINIMUM_DISTANCE = 2;
+			const MINIMUM_DISTANCE_POW = Math.pow(MINIMUM_DISTANCE, 2);
+			const DESEASE_DURATION = 14 * TICKS_IN_A_DAY;
+			const DEATH_RATE = 0.035;
+			
+
+
+			const STATUS = {
+				HEALTHY: 0,
+				INFECTED: 1,
+				IMUNE: 2,
+				DEAD: 3
+			};
+
+
+			var tick_cnt = 0;
+			var iterval_id;
+			var imune_cnt = 0;
+			var dead_cnt = 0;
+
+
+
+			var off = document.createElement('canvas');
+			off.width = CANVAS_WIDTH;
+			off.height = CANVAS_HEIGHT;
+			var ctx = off.getContext('2d');  
+
+
+			var c = document.getElementById("sim_canvas");
+			var ctx_screen = c.getContext("2d");
+
+			var pers = {
+				x: 0,
+				y: 0,
+				dx: 0,
+				dy: 0,
+				stat: 0,
+
+				gender: false,
+				age: -1,
+				reach: -1,
+
+				home_x: 0,
+				home_y: 0,
+
+
+				infection_tick: -1,
+				infected_cnt: 0,
+			};
+
+			var persons = [];
+
+			function init()
+			{
+				for (var i = 0; i < POPULATION; ++i) {
+					var item = {...pers };
+					item.x = Math.random() * CANVAS_WIDTH;
+					item.y = Math.random() * CANVAS_HEIGHT;
+
+					item.gender = Math.floor(Math.random()*2);
+					item.age = randn_bm(0, 100, 42);
+					item.reach = randn_bm(0, 100, 5);
+
+					if(i == 0) item.stat = 1;
+					persons.push(item);
+				}
+
+			}
+
+			function tick()
+			{
+				for (var i = 0; i < persons.length; ++i) {
+					if(persons[i].stat == STATUS.DEAD) continue;
+
+					var x = Math.random() * 2 - 1;
+					var y = Math.random() * 2 - 1;
+					var norm = Math.sqrt(x * x + y * y);
+
+					if (norm != 0) {
+						x = persons[i].reach * x / norm;
+						y = persons[i].reach * y / norm;
+					}
+
+					persons[i].dx = persons[i].dx * 0.5 + x * 0.5;
+					persons[i].dy = persons[i].dy * 0.5 + y * 0.5;
+
+					persons[i].x += persons[i].dx;
+					persons[i].y += persons[i].dy;
+
+				}
+
+				var infected_count = 0;
+				var r0 = 0;
+
+
+				for (var i = 0; i < persons.length; ++i) {
+					if(persons[i].stat == STATUS.INFECTED) {
+						if(persons[i].infection_tick + DESEASE_DURATION < tick_cnt)
+						{
+							if(Math.random() < DEATH_RATE){
+								persons[i].stat = STATUS.DEAD;
+								++dead_cnt;
+							}else{
+								persons[i].stat = STATUS.IMUNE;
+								++imune_cnt;
+							}
+							continue;
+						}
+
+						++infected_count;
+
+						for (var j = 0; j < persons.length; ++j) {
+							if(i == j || persons[j].stat != STATUS.HEALTHY) continue;
+
+							var dist = Math.pow(persons[i].x - persons[j].x, 2) + Math.pow(persons[i].y - persons[j].y, 2);
+							if(dist <= MINIMUM_DISTANCE_POW)
+							{
+								persons[i].infected_cnt += 1;
+
+								persons[j].stat = 1;
+								persons[j].infection_tick = tick_cnt;
+							}
+
+						}
+
+
+						r0 += persons[i].infected_cnt;
+
+					}
+				}
+
+				r0 /= infected_count;
+
+				if(tick_cnt % TICKS_IN_A_DAY == 0){
+					console.log("Day:", tick_cnt / TICKS_IN_A_DAY, "\tInfections:", infected_count, "\tR0: ", r0);
+
+					addData(tick_cnt / TICKS_IN_A_DAY, infected_count, imune_cnt, dead_cnt);
+				}
+
+				++tick_cnt;
+
+				if(infected_count == 0) clearInterval(iterval_id);
+			}
+
+
+			function render()
+			{
+				var infected = [];
+				var imunes = [];
+				var dead = [];
+
+				ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+				ctx_screen.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+				ctx.fillStyle = "#4caf50";
+				for (var i = 0; i < persons.length; ++i) {
+					if(persons[i].stat == STATUS.INFECTED){
+						infected.push(persons[i]);
+						continue;
+					}else if(persons[i].stat == STATUS.IMUNE){
+						imunes.push(persons[i]);
+						continue;
+					}else if(persons[i].stat == STATUS.DEAD){
+						dead.push(persons[i]);
+						continue;
+					}
+					
+
+					ctx.fillRect(persons[i].x, persons[i].y, DOT_SIZE, DOT_SIZE);
+				}
+
+				// Infected
+				ctx.fillStyle = "#e91e63";
+				for (var i = 0; i < infected.length; ++i) {
+					ctx.fillRect(infected[i].x, infected[i].y, DOT_SIZE, DOT_SIZE);
+				}
+
+
+				// Imune
+				ctx.fillStyle = "#3f51b5";
+				for (var i = 0; i < imunes.length; ++i) {
+					ctx.fillRect(imunes[i].x, imunes[i].y, DOT_SIZE, DOT_SIZE);
+				}
+
+
+				// Dead
+				ctx.fillStyle = "gray";
+				for (var i = 0; i < dead.length; ++i) {
+					ctx.fillRect(dead[i].x, dead[i].y, DOT_SIZE, DOT_SIZE);
+				}
+
+
+				ctx_screen.drawImage(off, 0, 0);
+				
+			}
+
+
+
+			function randn_bm(min, max, skew) {
+			    let u = 0, v = 0;
+			    while(u === 0) u = Math.random(); //Converting [0,1) to (0,1)
+			    while(v === 0) v = Math.random();
+			    let num = Math.sqrt( -2.0 * Math.log( u ) ) * Math.cos( 2.0 * Math.PI * v );
+
+			    num = num / 10.0 + 0.5; // Translate to 0 -> 1
+			    if (num > 1 || num < 0) num = randn_bm(min, max, skew); // resample between 0 and 1 if out of range
+			    num = Math.pow(num, skew); // Skew
+			    num *= max - min; // Stretch to fill range
+			    num += min; // offset to min
+			    return num;
+			}
+
+
+
+			init();
+			//loop();
+			iterval_id = setInterval(function() {
+				tick();
+				render();				
+			}, 100);
+		
+		</script>
+	</body>
+</html>
