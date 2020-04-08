@@ -2383,17 +2383,22 @@
 
 			// Desease
 			const TICKS_IN_A_DAY = 5;
+			const INCUBATION_TIME = 5;
 			const MINIMUM_DISTANCE = 0.6;
-			const MINIMUM_DISTANCE_POW = Math.pow(MINIMUM_DISTANCE, 2);
-			const DESEASE_DURATION = 19 * TICKS_IN_A_DAY;
+			const DESEASE_DURATION = 19;
 			const DEATH_RATE = 0.035;
-
-
+			
+			const MINIMUM_DISTANCE_POW = Math.pow(MINIMUM_DISTANCE, 2);
+			const DESEASE_DURATION_TICKS = DESEASE_DURATION * TICKS_IN_A_DAY;
+			const INCUBATION_TICKS = INCUBATION_TIME * TICKS_IN_A_DAY;
+			
+			
 			const STATUS = {
 				HEALTHY: 0,
-				INFECTED: 1,
-				IMUNE: 2,
-				DEAD: 3
+				INCUBATING: 1,
+				INFECTED: 2,
+				IMUNE: 3,
+				DEAD: 4
 			};
 
 
@@ -2401,7 +2406,6 @@
 			var iterval_id;
 			var imune_cnt = 0;
 			var dead_cnt = 0;
-
 
 
 			var off = document.createElement('canvas');
@@ -2460,7 +2464,7 @@
 						item.age = randn_bm(0, 100, 42);
 						item.reach = randn_bm(0, 100, 5);
 
-						//if(o == 0 && i == 0) item.stat = 1;
+
 						persons.push(item);
 					}
 
@@ -2520,7 +2524,7 @@
 							{
 								persons[i].infected_cnt += 1;
 
-								persons[j].stat = 1;
+								persons[j].stat = STATUS.INCUBATING;
 								persons[j].infection_tick = tick_cnt;
 							}
 
@@ -2529,6 +2533,10 @@
 
 						r0 += persons[i].infected_cnt;
 
+					}else if(persons[i].stat == STATUS.INCUBATING) {
+						if(tick_cnt > persons[i].infection_tick + INCUBATION_TICKS) {
+							persons[i].stat = STATUS.INFECTED;
+						}
 					}
 				}
 
@@ -2551,6 +2559,7 @@
 
 			function render()
 			{
+				var incubating = [];
 				var infected = [];
 				var imunes = [];
 				var dead = [];
@@ -2562,7 +2571,10 @@
 
 				ctx.fillStyle = "#4caf50";
 				for (var i = 0; i < persons.length; ++i) {
-					if(persons[i].stat == STATUS.INFECTED){
+					if(persons[i].stat == STATUS.INCUBATING){
+						incubating.push(persons[i]);
+						continue;
+					}else if(persons[i].stat == STATUS.INFECTED){
 						infected.push(persons[i]);
 						continue;
 					}else if(persons[i].stat == STATUS.IMUNE){
@@ -2575,6 +2587,12 @@
 					
 
 					ctx.fillRect(persons[i].x, persons[i].y, DOT_SIZE, DOT_SIZE);
+				}
+				
+				// Incubating
+				ctx.fillStyle = "#e9a91e";
+				for (var i = 0; i < incubating.length; ++i) {
+					ctx.fillRect(incubating[i].x, incubating[i].y, DOT_SIZE, DOT_SIZE);
 				}
 
 				// Infected
