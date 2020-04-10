@@ -1,4 +1,4 @@
-var ctx_c1 = document.getElementById('statistics_chart').getContext('2d');
+var ctx_c1 = document.getElementById('statistics_all_chart').getContext('2d');
 var chart1 = new Chart(ctx_c1, {
     type: 'line',
     data: {
@@ -6,6 +6,10 @@ var chart1 = new Chart(ctx_c1, {
         datasets: [{
             label: 'Active',
             borderColor: '#e91e63'
+        },
+        {
+            label: 'Total',
+            borderColor: 'red'
         },
         {
             label: 'Recovered',
@@ -17,6 +21,20 @@ var chart1 = new Chart(ctx_c1, {
         }]
     }
 });
+
+var chart_daily_ctx = document.getElementById('statistics_daily_chart').getContext('2d');
+var chart_daily = new Chart(chart_daily_ctx, {
+    type: 'bar',
+    data: {
+        labels: ['Days'],
+        datasets: [{
+            label: 'Cases',
+            backgroundColor: 'gray'
+        }]
+    }
+});
+
+
 
 
 var ctx_c2 = document.getElementById('statistics_chart_inc').getContext('2d');
@@ -32,18 +50,30 @@ var chart2 = new Chart(ctx_c2, {
 });
 
 
-function addData(label, infected, recovered, dead) {
+function addDailyInfected(label, amount)
+{
+	chart_daily.data.labels.push(label);
+    chart_daily.data.datasets[0].data.push(amount);
+    chart_daily.update();
+}
+
+function addData(label, infected, total, recovered, dead) {
     chart1.data.labels.push(label);
     chart1.data.datasets[0].data.push(infected);
-    chart1.data.datasets[1].data.push(recovered);
-    chart1.data.datasets[2].data.push(dead);
+    chart1.data.datasets[1].data.push(total);
+    chart1.data.datasets[2].data.push(recovered);
+    chart1.data.datasets[3].data.push(dead);
     chart1.update();
 }
 
 
 
-//var map = new Image();
-//map.src = "res/switzerland_patched.svg";
+
+
+
+
+
+
 
 
 // Canvas
@@ -57,15 +87,12 @@ const INFECT_AFTER_TIME = 10;
 
 // Desease
 const TICKS_IN_A_DAY = 5;
-//const INCUBATION_TIME = 5;
-const MINIMUM_DISTANCE = 0.2;
+const MINIMUM_DISTANCE = 0.05;
 const DESEASE_DURATION = 19;
 const DEATH_RATE = 0.035;
 
 const MINIMUM_DISTANCE_POW = Math.pow(MINIMUM_DISTANCE, 2);
 const DESEASE_DURATION_TICKS = DESEASE_DURATION * TICKS_IN_A_DAY;
-//const INCUBATION_TICKS = INCUBATION_TIME * TICKS_IN_A_DAY;
-
 
 const STATUS = {
 	HEALTHY: 0,
@@ -78,9 +105,10 @@ const STATUS = {
 
 var tick_cnt = 0;
 var iterval_id;
+var infected_cnt = 0;
 var imune_cnt = 0;
 var dead_cnt = 0;
-
+var daily_infected_cnt = 0;
 
 var off = document.createElement('canvas');
 off.width = CANVAS_WIDTH;
@@ -97,7 +125,7 @@ canvas.width = CANVAS_WIDTH;
 canvas.height = CANVAS_HEIGHT;
 var ctx_screen = canvas.getContext("2d");
 
-var pers = {
+var person = {
 	x: 0,
 	y: 0,
 	dx: 0,
@@ -117,8 +145,28 @@ var pers = {
 	infected_cnt: 0,
 };
 
+var big_places = {};
 var persons = [];
 var infection_starter = [];
+
+
+var play_pause_btn;
+var stop_btn;
+var svg_point;
+
+function init_elements()
+{
+
+	play_pause_btn 	= document.getElementById('play-pause-btn');
+	stop_btn 		= document.getElementById('stop-btn');
+
+	svg_point = mapsvg.createSVGPoint();
+
+
+	play_pause_btn.addEventListener("click", start);
+	stop_btn.addEventListener("click", stop);
+}
+
 
 function init()
 {
@@ -137,9 +185,17 @@ function init()
 		var center_y = all_paths[o].getBBox().y + (all_paths[o].getBBox().height / 2);
 
 		for (var i = 0; i < Math.pow(parseInt(all_paths[o].getAttribute('data-pop')), 1 / POPULATION_FACTOR) ; ++i) {
-			var item = {...pers };
-			item.x = center_x + (Math.random()*2-1);
-			item.y = center_y + (Math.random()*2-1);
+		//for (var i = 0; i < 1; ++i) {
+			var item = {...person };
+
+			do{
+				item.x = randn_bm(center_x -all_paths[o].getBBox().width/2, center_x + all_paths[o].getBBox().width/2, 1);
+				item.y = randn_bm(center_y -all_paths[o].getBBox().height/2, center_y + all_paths[o].getBBox().height/2, 1);
+
+				svg_point.x = item.x;
+				svg_point.y = item.y;
+
+			}while(!all_paths[o].isPointInFill(svg_point))
 
 			item.home_x = item.x;
 			item.home_y = item.y;
@@ -163,6 +219,23 @@ function init()
 			{
 				infection_starter.push(item);
 			}
+
+
+
+			if(i == 0 &&
+			 (
+			 	(title == "Bellinzona") ||
+				 (title == "Zürich") ||
+				 (title == "Lausanne") ||
+				 (title == "Basel") ||
+				 (title == "Bern") ||
+				 (title == "Luzern") ||
+				 (title == "Zürich") ||
+				 (title == "Genève")
+			 ))
+			{
+				big_places[title] = {x: center_x, y: center_y};
+			}
 		}
 
 	}
@@ -179,11 +252,9 @@ function tick()
 	let boundary = new Rectangle(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 	let qtree = new QuadTree(boundary, 10);
 
+	// Simulate movement
 	for (var i = 0; i < persons.length; ++i) {
 		if(persons[i].stat == STATUS.DEAD) continue;
-
-		
-
 
 		var x = Math.random() * 2 - 1;
 		var y = Math.random() * 2 - 1;
@@ -194,8 +265,28 @@ function tick()
 			y = persons[i].reach * y / norm;
 		}
 
+		// Short city trip
 		persons[i].dx = persons[i].dx * 0.5 + x * 0.5 + (persons[i].home_x - persons[i].x) * 0.02;
 		persons[i].dy = persons[i].dy * 0.5 + y * 0.5 + (persons[i].home_y - persons[i].y) * 0.02;
+
+		if(tick_cnt % 5 == 0){
+			// Go Home
+			persons[i].x = persons[i].home_x;
+			persons[i].y = persons[i].home_y;
+
+			persons[i].dx = 0;
+			persons[i].dy = 0;
+
+		}else if(tick_cnt % 5 - 4 == 0 || tick_cnt % 5 - 2 == 0){
+			// Go to a popular city
+			if(Math.random() <= 0.08){
+				let index = Math.floor(Math.random() * Object.keys(big_places).length);
+				let key = Object.keys(big_places)[index];
+				let el = big_places[key];
+				persons[i].x = el.x;
+				persons[i].y = el.y;
+			}
+		}
 
 		persons[i].x += persons[i].dx;
 		persons[i].y += persons[i].dy;
@@ -204,20 +295,17 @@ function tick()
 			let point = new Point(persons[i].x, persons[i].y, persons[i]);
 			qtree.insert(point);
 		}
-
-
-		//map.getImageData(persons[i].x, persons[i].y, 1, 1).data; 
-
 	}
 
 	var infected_count = 0;
 	var r0 = 0;
 
+	// Simulate infections
 	for (var i = 0; i < persons.length; ++i) {
-		if(persons[i].stat == STATUS.INFECTED) {
-			if(persons[i].infection_tick + DESEASE_DURATION_TICKS < tick_cnt)
+		if(persons[i].stat == STATUS.INFECTED || persons[i].stat == STATUS.INCUBATING) {
+			if(persons[i].infection_tick + persons[i].incubation_tick + DESEASE_DURATION_TICKS < tick_cnt)
 			{
-				if(Math.random() < DEATH_RATE){
+				if(Math.random() <= DEATH_RATE){
 					persons[i].stat = STATUS.DEAD;
 					++dead_cnt;
 				}else{
@@ -234,6 +322,8 @@ function tick()
 			let points = qtree.query(range);
 			for (let point of points) {
 				let other = point.userData;
+
+				if(other.stat == STATUS.INCUBATING || other.stat == STATUS.INFECTED) continue;
 			
 			//for (var j = 0; j < persons.length; ++j) {
 				//if(i == j || persons[j].stat != STATUS.HEALTHY) continue;
@@ -241,20 +331,31 @@ function tick()
 				//var dist = Math.pow(persons[i].x - persons[j].x, 2) + Math.pow(persons[i].y - persons[j].y, 2);
 				//if(dist <= MINIMUM_DISTANCE_POW)
 				//{
-					persons[i].infected_cnt += 1;
+					let chance;
+					if(persons[i].stat == STATUS.INCUBATING){
+						chance = 0.3;
+					}else if(persons[i].stat == STATUS.INFECTED){
+						chance = 0.9;
+					}
 
-					other.stat = STATUS.INCUBATING;
-					other.infection_tick = tick_cnt;
+					if(Math.random() <= chance){
+						persons[i].infected_cnt += 1;
+						++infected_cnt;
+						++daily_infected_cnt;						
+
+						other.stat = STATUS.INCUBATING;
+						other.infection_tick = tick_cnt;
+					}
 				//}
-
 			}
-
 
 			r0 += persons[i].infected_cnt;
 
-		}else if(persons[i].stat == STATUS.INCUBATING) {
-			if(tick_cnt > persons[i].infection_tick + persons[i].incubation_tick) {
-				persons[i].stat = STATUS.INFECTED;
+			// Escalate incubating patients to infected
+			if(persons[i].stat == STATUS.INCUBATING) {
+				if(tick_cnt > persons[i].infection_tick + persons[i].incubation_tick) {
+					persons[i].stat = STATUS.INFECTED;
+				}
 			}
 		}
 	}
@@ -264,17 +365,24 @@ function tick()
 	if(tick_cnt % TICKS_IN_A_DAY == 0){
 		console.log("Day:", tick_cnt / TICKS_IN_A_DAY, "\tInfections:", infected_count, "\tR0: ", r0);
 
-		addData(tick_cnt / TICKS_IN_A_DAY, infected_count, imune_cnt, dead_cnt);
+		addDailyInfected(tick_cnt / TICKS_IN_A_DAY, daily_infected_cnt);
+		addData(tick_cnt / TICKS_IN_A_DAY, infected_count, infected_cnt, imune_cnt, dead_cnt);
+
+		daily_infected_cnt = 0;
 	}
 
 	++tick_cnt;
 
+	// Start infections
 	if(tick_cnt == INFECT_AFTER_TIME) {
 		for(let p of infection_starter)
 		{
-			p.stat = STATUS.INFECTED;
+			p.stat = STATUS.INCUBATING;
+			++infected_cnt;
+			++daily_infected_cnt;
 		}
 	}
+	
 	if(tick_cnt > INFECT_AFTER_TIME && infected_count == 0) clearInterval(iterval_id);
 }
 
@@ -288,8 +396,6 @@ function render()
 
 	ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 	ctx_screen.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-
-	//ctx.drawImage(map, 0, 0);
 
 	ctx.fillStyle = "#4caf50";
 	for (var i = 0; i < persons.length; ++i) {
@@ -306,7 +412,6 @@ function render()
 			dead.push(persons[i]);
 			continue;
 		}
-		
 
 		ctx.fillRect(persons[i].x, persons[i].y, DOT_SIZE, DOT_SIZE);
 	}
@@ -323,13 +428,11 @@ function render()
 		ctx.fillRect(infected[i].x, infected[i].y, DOT_SIZE, DOT_SIZE);
 	}
 
-
 	// Imune
 	ctx.fillStyle = "#3f51b5";
 	for (var i = 0; i < imunes.length; ++i) {
 		ctx.fillRect(imunes[i].x, imunes[i].y, DOT_SIZE, DOT_SIZE);
 	}
-
 
 	// Dead
 	ctx.fillStyle = "gray";
@@ -337,9 +440,7 @@ function render()
 		ctx.fillRect(dead[i].x, dead[i].y, DOT_SIZE, DOT_SIZE);
 	}
 
-
 	ctx_screen.drawImage(off, 0, 0);
-	
 }
 
 
@@ -358,26 +459,27 @@ function randn_bm(min, max, skew) {
     return num;
 }
 
+function start()
+{
+	init();
+	resume();
+}
+
+function resume()
+{
+	iterval_id = setInterval(function() {
+		tick();
+		render();				
+	}, 100);
+}
+
 function stop()
 {
 	clearInterval(iterval_id);
 }
 
 
-document.addEventListener("DOMContentLoaded", function(event) {
-	init();
 
-	/*
-	tick();
-	render();	
-	tick();
-	render();	
-	*/
-	
-	iterval_id = setInterval(function() {
-		tick();
-		render();				
-	}, 100);
-	
-	
+document.addEventListener("DOMContentLoaded", function(event) {
+	init_elements();
 });
