@@ -31,8 +31,8 @@ p{
 }
 
 
-#main-panel{
-
+#main-panel{	
+	padding: 10% 10% 10% calc(25vw + 10%);
 }
 
 

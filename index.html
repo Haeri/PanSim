@@ -21,17 +21,17 @@
 
 					<h4>Status</h4>
 					<table id="stat-table" style="width:100%">
+						<tr><td>Population</td><td id="population_display"></td></tr>
 						<tr><td>Day</td><td id="day_display"></td></tr>
 						<tr><td>Cycle</td><td id="cycle_display"></td></tr>
-						<tr><td>Population</td><td id="population_display"></td></tr>
 						<tr><td>Infected</td><td id="infected_display"></td></tr>
 						<tr><td>Recovered</td><td id="recovered_display"></td></tr>
-						<tr><td>Dead</td><td id="dead_display"></td></tr>
+						<tr><td>Deceased</td><td id="dead_display"></td></tr>
 					</table>
 					
 					<h4>Configuration</h4>
 					<table id="config-table" style="width:100%">
-						<tr><td>Pupulation Factor</td><td><input type="number" id="population_factor_input" value="1.5"></td></tr>
+						<tr><td>Pupulation Factor</td><td><input type="number" id="population_factor_input" value="0.3"></td></tr>
 						<tr><td>Minimum Distance</td><td><input type="number" id="minimum_distance_input" value="0.05"></td></tr>
 					</table>
 
@@ -2350,7 +2350,7 @@
 				    </g>
 				</svg>
 				
-				<canvas id="sim_canvas" style="position: absolute" width="600" height="600">Your browser does not support the HTML5 canvas tag.</canvas>
+				<canvas id="sim_canvas" style="position: absolute" >Your browser does not support the HTML5 canvas tag.</canvas>
 			</div>
 
 			

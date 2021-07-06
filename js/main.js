@@ -93,7 +93,7 @@ const CANVAS_HEIGHT = 2207.16 / 1;
 const DOT_SIZE = 1;
 
 // Population
-var POPULATION_FACTOR = 3;
+var POPULATION_FACTOR = 0.3;
 const INFECT_AFTER_TIME = 10;
 
 // Desease
@@ -218,7 +218,7 @@ function init()
 		var center_x = all_paths[o].getBBox().x + (all_paths[o].getBBox().width / 2);
 		var center_y = all_paths[o].getBBox().y + (all_paths[o].getBBox().height / 2);
 
-		for (var i = 0; i < Math.pow(parseInt(all_paths[o].getAttribute('data-pop')), 1 / POPULATION_FACTOR) ; ++i) {
+		for (var i = 0; i < (parseInt(all_paths[o].getAttribute('data-pop')) * POPULATION_FACTOR) ; ++i) {
 			var item = {...person };
 
 			do{
